@@ -59,16 +59,14 @@ footer{margin-top:18px;color:var(--muted);font-size:12px;text-align:center}
     <div class="logo">🕌</div>
     <div><h1>Qira'ah AI</h1><div class="subtitle">Quran Recitation Learning Assistant</div></div>
   </div>
-  <div class="badge">V3 • 114 Surahs</div>
+  <div class="badge">Prototype • Browser AI</div>
 </header>
 
 <div class="grid">
 <section class="card">
   <h2>🎙️ Recitation Trainer</h2>
-  <label for="surahSelect">Choose a surah</label>
-  <select id="surahSelect"><option>Loading 114 surahs…</option></select>
   <label for="ayahSelect">Choose an ayah</label>
-  <select id="ayahSelect" disabled><option>Loading ayahs…</option></select>
+  <select id="ayahSelect"></select>
   <div id="ayahText" class="ayah"></div>
   <div id="translation" class="translation"></div>
 
@@ -106,10 +104,15 @@ footer{margin-top:18px;color:var(--muted);font-size:12px;text-align:center}
 </div>
 
 <script>
-const API="https://api.quran.com/api/v4";
-let AYAT=[];
-let SURAHES=[];
-const surahSelect=document.getElementById("surahSelect");
+const AYAT = [
+ {n:1, text:"بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ", tr:"In the name of Allah, the Most Compassionate, the Most Merciful."},
+ {n:2, text:"الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ", tr:"All praise is for Allah—Lord of the worlds."},
+ {n:3, text:"الرَّحْمَٰنِ الرَّحِيمِ", tr:"The Most Compassionate, the Most Merciful."},
+ {n:4, text:"مَالِكِ يَوْمِ الدِّينِ", tr:"Master of the Day of Judgment."},
+ {n:5, text:"إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ", tr:"You alone we worship and You alone we ask for help."},
+ {n:6, text:"اهْدِنَا الصِّرَاطَ الْمُسْتَقِيمَ", tr:"Guide us to the Straight Path."},
+ {n:7, text:"صِرَاطَ الَّذِينَ أَنْعَمْتَ عَلَيْهِمْ غَيْرِ الْمَغْضُوبِ عَلَيْهِمْ وَلَا الضَّالِّينَ", tr:"The path of those You have blessed—not those You are displeased with, or those who are astray."}
+];
 
 const select = document.getElementById("ayahSelect");
 const ayahText = document.getElementById("ayahText");
@@ -120,60 +123,21 @@ const scoreText = document.getElementById("scoreText");
 const meterFill = document.getElementById("meterFill");
 const wordReport = document.getElementById("wordReport");
 
-async function loadSurahs(){
-  try{
-    const r=await fetch(API+"/chapters?language=en");
-    if(!r.ok) throw new Error("Could not load surahs");
-    const data=await r.json();
-    SURAHES=data.chapters||[];
-    surahSelect.innerHTML="";
-    SURAHES.forEach(s=>{
-      const o=document.createElement("option");
-      o.value=s.id;
-      o.textContent=`${s.id}. ${s.name_simple} — ${s.name_arabic}`;
-      surahSelect.appendChild(o);
-    });
-    await loadSurah();
-  }catch(e){
-    statusEl.textContent="Could not load Quran data. Check your internet connection and refresh.";
-    console.error(e);
-  }
-}
-
-async function loadSurah(){
-  select.disabled=true;
-  select.innerHTML="<option>Loading all ayahs…</option>";
-  AYAT=[];
-  try{
-    let page=1;
-    while(true){
-      const r=await fetch(`${API}/verses/by_chapter/${surahSelect.value}?language=en&words=false&translations=131&per_page=50&page=${page}`);
-      if(!r.ok) throw new Error("Could not load ayahs");
-      const data=await r.json();
-      (data.verses||[]).forEach(v=>AYAT.push({n:v.verse_number,text:(v.text_uthmani_simple||v.text_imlaei_simple||v.text_uthmani||v.text_imlaei||""),tr:(v.translations?.[0]?.text||"").replace(/<[^>]*>/g,"")}));
-      if(!data.pagination?.next_page) break;
-      page=data.pagination.next_page;
-    }
-    select.innerHTML="";
-    AYAT.forEach(a=>{const o=document.createElement("option");o.value=a.n;o.textContent=`Ayah ${a.n}`;select.appendChild(o);});
-    select.disabled=false;
-    renderAyah();
-  }catch(e){
-    statusEl.textContent="Could not load this surah's ayahs.";
-    console.error(e);
-  }
-}
+AYAT.forEach(a => {
+  const o=document.createElement("option");
+  o.value=a.n; o.textContent=`Al-Fatihah — Ayah ${a.n}`;
+  select.appendChild(o);
+});
 
 function currentAyah(){return AYAT[Number(select.value)-1] || AYAT[0];}
 function renderAyah(){
   const a=currentAyah();
-  if(!a)return;
   ayahText.textContent=a.text;
   translation.textContent=a.tr;
   resetResult();
 }
-surahSelect.addEventListener("change",loadSurah);
 select.addEventListener("change",renderAyah);
+
 function normalize(s){
   return s
     .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g,"")
@@ -229,7 +193,7 @@ function resetResult(){
   wordReport.innerHTML="";
   statusEl.textContent="Ready. Press Start Reciting and allow microphone access.";
 }
-loadSurahs();
+renderAyah();
 
 let recognition=null, listening=false;
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
