@@ -59,14 +59,16 @@ footer{margin-top:18px;color:var(--muted);font-size:12px;text-align:center}
     <div class="logo">🕌</div>
     <div><h1>Qira'ah AI</h1><div class="subtitle">Quran Recitation Learning Assistant</div></div>
   </div>
-  <div class="badge">Prototype • Browser AI</div>
+  <div class="badge">V3.1 • Offline Quran Data</div>
 </header>
 
 <div class="grid">
 <section class="card">
   <h2>🎙️ Recitation Trainer</h2>
+  <label for="surahSelect">Choose a surah</label>
+  <select id="surahSelect"><option>Loading offline Quran…</option></select>
   <label for="ayahSelect">Choose an ayah</label>
-  <select id="ayahSelect"></select>
+  <select id="ayahSelect" disabled><option>Select a surah first</option></select>
   <div id="ayahText" class="ayah"></div>
   <div id="translation" class="translation"></div>
 
@@ -96,7 +98,7 @@ footer{margin-top:18px;color:var(--muted);font-size:12px;text-align:center}
     <input id="chatInput" placeholder="Ask: how do I practice this ayah?">
     <button id="sendBtn" class="primary">Send</button>
   </div>
-  <p class="small">Important: this prototype checks recognized Arabic words against the selected ayah. It does <b>not</b> yet reliably judge Tajweed, makharij, or every grammatical/phonetic error. Those require specialized audio models and qualified human validation.</p>
+  <p class="small">Offline mode: Quran text is loaded from local quran.json. This prototype checks recognized Arabic words against the selected ayah. It does <b>not</b> yet reliably judge Tajweed, makharij, or every grammatical/phonetic error. Those require specialized audio models and qualified human validation.</p>
 </section>
 </div>
 
@@ -104,38 +106,61 @@ footer{margin-top:18px;color:var(--muted);font-size:12px;text-align:center}
 </div>
 
 <script>
-const AYAT = [
- {n:1, text:"بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ", tr:"In the name of Allah, the Most Compassionate, the Most Merciful."},
- {n:2, text:"الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ", tr:"All praise is for Allah—Lord of the worlds."},
- {n:3, text:"الرَّحْمَٰنِ الرَّحِيمِ", tr:"The Most Compassionate, the Most Merciful."},
- {n:4, text:"مَالِكِ يَوْمِ الدِّينِ", tr:"Master of the Day of Judgment."},
- {n:5, text:"إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ", tr:"You alone we worship and You alone we ask for help."},
- {n:6, text:"اهْدِنَا الصِّرَاطَ الْمُسْتَقِيمَ", tr:"Guide us to the Straight Path."},
- {n:7, text:"صِرَاطَ الَّذِينَ أَنْعَمْتَ عَلَيْهِمْ غَيْرِ الْمَغْضُوبِ عَلَيْهِمْ وَلَا الضَّالِّينَ", tr:"The path of those You have blessed—not those You are displeased with, or those who are astray."}
+// ============================================================
+// V3.1 OFFLINE QURAN DATA LAYER
+// The original V1 recognition functions below are preserved.
+// Put quran.json beside index.html. It uses the structure from
+// the quran-json dataset: {"1":[{"chapter":1,"verse":1,"text":"..."}], ...}
+// ============================================================
+let AYAT=[];
+let SURAHES=[];
+let selectedSurah=1;
+const surahSelect=document.getElementById("surahSelect");
+const select=document.getElementById("ayahSelect");
+const surahNames=[
+"Al-Fatihah","Al-Baqarah","Ali 'Imran","An-Nisa","Al-Ma'idah","Al-An'am","Al-A'raf","Al-Anfal","At-Tawbah","Yunus","Hud","Yusuf","Ar-Ra'd","Ibrahim","Al-Hijr","An-Nahl","Al-Isra","Al-Kahf","Maryam","Ta-Ha","Al-Anbiya","Al-Hajj","Al-Mu'minun","An-Nur","Al-Furqan","Ash-Shu'ara","An-Naml","Al-Qasas","Al-Ankabut","Ar-Rum","Luqman","As-Sajdah","Al-Ahzab","Saba","Fatir","Ya-Sin","As-Saffat","Sad","Az-Zumar","Ghafir","Fussilat","Ash-Shura","Az-Zukhruf","Ad-Dukhan","Al-Jathiyah","Al-Ahqaf","Muhammad","Al-Fath","Al-Hujurat","Qaf","Adh-Dhariyat","At-Tur","An-Najm","Al-Qamar","Ar-Rahman","Al-Waqi'ah","Al-Hadid","Al-Mujadilah","Al-Hashr","Al-Mumtahanah","As-Saff","Al-Jumu'ah","Al-Munafiqun","At-Taghabun","At-Talaq","At-Tahrim","Al-Mulk","Al-Qalam","Al-Haqqah","Al-Ma'arij","Nuh","Al-Jinn","Al-Muzzammil","Al-Muddaththir","Al-Qiyamah","Al-Insan","Al-Mursalat","An-Naba","An-Nazi'at","Abasa","At-Takwir","Al-Infitar","Al-Mutaffifin","Al-Inshiqaq","Al-Buruj","At-Tariq","Al-A'la","Al-Ghashiyah","Al-Fajr","Al-Balad","Ash-Shams","Al-Layl","Ad-Duha","Ash-Sharh","At-Tin","Al-Alaq","Al-Qadr","Al-Bayyinah","Az-Zalzalah","Al-Adiyat","Al-Qari'ah","At-Takathur","Al-Asr","Al-Humazah","Al-Fil","Quraysh","Al-Ma'un","Al-Kawthar","Al-Kafirun","An-Nasr","Al-Masad","Al-Ikhlas","Al-Falaq","An-Nas"
 ];
 
-const select = document.getElementById("ayahSelect");
-const ayahText = document.getElementById("ayahText");
-const translation = document.getElementById("translation");
-const statusEl = document.getElementById("status");
-const recognizedEl = document.getElementById("recognized");
-const scoreText = document.getElementById("scoreText");
-const meterFill = document.getElementById("meterFill");
-const wordReport = document.getElementById("wordReport");
+async function loadOfflineQuran(){
+  try{
+    const r=await fetch("quran.json",{cache:"no-store"});
+    if(!r.ok) throw new Error("quran.json not found");
+    const data=await r.json();
+    SURAHES=Object.keys(data).map(Number).sort((a,b)=>a-b).map(n=>({id:n,name:surahNames[n-1]||`Surah ${n}`}));
+    surahSelect.innerHTML="";
+    SURAHES.forEach(s=>{const o=document.createElement("option");o.value=s.id;o.textContent=`${s.id}. ${s.name}`;surahSelect.appendChild(o);});
+    await loadLocalSurah();
+  }catch(e){
+    statusEl.textContent="Offline Quran data is missing. Put quran.json beside index.html.";
+    surahSelect.innerHTML="<option>quran.json not found</option>";
+    console.error(e);
+  }
+}
 
-AYAT.forEach(a => {
-  const o=document.createElement("option");
-  o.value=a.n; o.textContent=`Al-Fatihah — Ayah ${a.n}`;
-  select.appendChild(o);
-});
+async function loadLocalSurah(){
+  try{
+    const r=await fetch("quran.json",{cache:"no-store"});
+    const data=await r.json();
+    selectedSurah=Number(surahSelect.value);
+    const raw=data[String(selectedSurah)]||[];
+    AYAT=raw.map(v=>({n:Number(v.verse),text:String(v.text||""),tr:""}));
+    select.innerHTML="";
+    AYAT.forEach(a=>{const o=document.createElement("option");o.value=a.n;o.textContent=`Ayah ${a.n}`;select.appendChild(o);});
+    select.disabled=AYAT.length===0;
+    renderAyah();
+  }catch(e){statusEl.textContent="Could not read quran.json.";console.error(e);}
+}
 
 function currentAyah(){return AYAT[Number(select.value)-1] || AYAT[0];}
 function renderAyah(){
   const a=currentAyah();
+  if(!a)return;
   ayahText.textContent=a.text;
-  translation.textContent=a.tr;
+  translation.textContent="Offline Quran text loaded. Translation is not included in this offline bundle.";
   resetResult();
+  statusEl.textContent=`Ready — ${surahNames[selectedSurah-1]||"Surah "+selectedSurah}, Ayah ${a.n}.`;
 }
+surahSelect.addEventListener("change",loadLocalSurah);
 select.addEventListener("change",renderAyah);
 
 function normalize(s){
